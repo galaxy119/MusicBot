@@ -1,48 +1,78 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Security.AccessControl;
+using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using MEC;
 using Microsoft.Extensions.DependencyInjection;
 using Victoria;
+using Victoria.Entities;
 
 namespace MusicBot
 {
 	public class Bot
 	{
-		private DiscordSocketClient _client;
-		private CommandService _cmdService;
-		private IServiceProvider _services;
+		private readonly DiscordSocketClient client;
+		private readonly CommandService cmdService;
+		private IServiceProvider services;
+		private readonly Program program;
 
-		public Bot(DiscordSocketClient client = null, CommandService cmdService = null)
+		public Bot(Program program, DiscordSocketClient client = null, CommandService cmdService = null)
 		{
-			_client = client ?? new DiscordSocketClient(new DiscordSocketConfig {
+			this.program = program;
+			this.client = client ?? new DiscordSocketClient(new DiscordSocketConfig {
 				AlwaysDownloadUsers = true,
 				MessageCacheSize = 50,
-				LogLevel = LogSeverity.Debug
+				LogLevel = LogSeverity.Warning
 			});
 
-			_cmdService = cmdService ?? new CommandService(new CommandServiceConfig {
-				LogLevel = LogSeverity.Verbose,
+			this.cmdService = cmdService ?? new CommandService(new CommandServiceConfig {
+				LogLevel = LogSeverity.Warning,
 				CaseSensitiveCommands = false
 			});
+			InitializeAsync().GetAwaiter().GetResult();
 		}
 
-		public async Task InitializeAsync()
+		private async Task InitializeAsync()
 		{
-			await _client.LoginAsync(TokenType.Bot, "NTk1NDQ4OTYzMjQ3NjM2NDkw.XRrJ4w.0ZVtaDR4IOvOb1k1vwu9FfYjDhs");
-			await _client.StartAsync();
-			_client.Log += LogAsync;
-			_services = SetupServices();
+			await client.LoginAsync(TokenType.Bot, program.Config.BotToken);
+			await client.StartAsync();
+			client.Log += LogAsync;
+			services = SetupServices();
 
-			var cmdHandler = new CommandHandler(_client, _cmdService, _services);
+			CommandHandler cmdHandler = new CommandHandler(client, cmdService, services, program);
 			await cmdHandler.InitializeAsync();
 
-			await _services.GetRequiredService<MusicService>().InitializeAsync();
+			await services.GetRequiredService<MusicService>().InitializeAsync();
+
+			SetStatus();
 
 			await Task.Delay(-1);
+		}
+
+		private async Task SetStatus()
+		{
+			while (true)
+			{
+				if (MusicService.Player == null)
+				{
+					await client.SetStatusAsync(UserStatus.AFK);
+					await client.SetActivityAsync(new Game("Idling."));
+				}
+				else if (MusicService.Player.IsPlaying)
+				{
+					await client.SetStatusAsync(UserStatus.Online);
+					LavaTrack track = MusicService.Player.CurrentTrack;
+					await client.SetActivityAsync(new Game(
+						$"{track.Title} - {track.Author} ({track.Position.TotalMinutes}/{track.Length.TotalMinutes}"));
+				}
+
+				await Task.Delay(1000);
+			}
 		}
 
 		private Task LogAsync(LogMessage logMessage)
@@ -53,8 +83,8 @@ namespace MusicBot
 
 		private IServiceProvider SetupServices()
 			=> new ServiceCollection()
-				.AddSingleton(_client)
-				.AddSingleton(_cmdService)
+				.AddSingleton(client)
+				.AddSingleton(cmdService)
 				.AddSingleton<LavaRestClient>()
 				.AddSingleton<LavaSocketClient>()
 				.AddSingleton<MusicService>()

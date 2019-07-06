@@ -11,9 +11,9 @@ namespace MusicBot.Modules
 {
 	public class Music : ModuleBase<SocketCommandContext>
     {
-        private MusicService _musicService;
+        private readonly MusicService musicService;
 
-        public Music(MusicService musicService) => _musicService = musicService;
+        public Music(MusicService musicService) => this.musicService = musicService;
 
         [Command("Join")]
         public async Task Join()
@@ -25,7 +25,7 @@ namespace MusicBot.Modules
                 return;
             }
 
-            await _musicService.ConnectAsync(user.VoiceChannel, Context.Channel as ITextChannel);
+            await musicService.ConnectAsync(user.VoiceChannel, Context.Channel as ITextChannel);
             await ReplyAsync($"now connected to {user.VoiceChannel.Name}");
         }
 
@@ -39,7 +39,7 @@ namespace MusicBot.Modules
             }
             else
             {
-                await _musicService.LeaveAsync(user.VoiceChannel, Context.Channel as ITextChannel);
+                await musicService.LeaveAsync(user.VoiceChannel);
                 await ReplyAsync($"Bot has now left {user.VoiceChannel.Name}");
             }
         }
@@ -54,7 +54,7 @@ namespace MusicBot.Modules
             }
             else
             {
-                await _musicService.LeaveAsync(user.VoiceChannel, Context.Channel as ITextChannel);
+                await musicService.LeaveAsync(user.VoiceChannel);
                 await ReplyAsync($"Bot has now left {user.VoiceChannel.Name}");
             }
         }
@@ -62,35 +62,35 @@ namespace MusicBot.Modules
         [Command("Play")]
         public async Task Play([Remainder]string query)
         {
-            string result = await _musicService.PlayAsync(query, Context.Guild.Id);
+            string result = await musicService.PlayAsync(query, Context.Guild.Id);
             await ReplyAsync(result);
         }
 
         [Command("Stop")]
         public async Task Stop()
         {
-            await _musicService.StopAsync();
+            await musicService.StopAsync();
             await ReplyAsync("Music Playback Stopped.");
         }
 
         [Command("Skip")]
         public async Task Skip()
         {
-            string result = await _musicService.SkipAsync();
+            string result = await musicService.SkipAsync();
             await ReplyAsync(result);
         }
 
         [Command("Volume")]
         public async Task Volume(int vol)
-            => await ReplyAsync(await _musicService.SetVolumeAsync(vol));
+            => await ReplyAsync(await musicService.SetVolumeAsync(vol));
 
         [Command("Pause")]
         public async Task Pause()
-            => await ReplyAsync(await _musicService.PauseOrResumeAsync());
+            => await ReplyAsync(await musicService.PauseOrResumeAsync());
 
         [Command("Resume")]
         public async Task Resume()
-            => await ReplyAsync(await _musicService.ResumeAsync());
+            => await ReplyAsync(await MusicService.ResumeAsync());
 
     }
 }
